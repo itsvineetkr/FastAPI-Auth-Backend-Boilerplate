@@ -12,7 +12,6 @@ from src.auth.models import User, TokenData
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_BASE_PATH}/token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 users = db.users
 
 
@@ -30,6 +29,7 @@ async def authenticate_user(username: str, password: str) -> User | None:
         return False
 
     return User(
+        id=user.id,
         username=user.username,
         email=user.email,
         full_name=user.full_name,
@@ -97,10 +97,21 @@ async def save_user(username, email, hashed_password, full_name, disabled=False)
     return result.inserted_id
 
 
+async def update_user(username:str, update_data: dict):
+    result = await users.update_one({"username": username}, {"$set": update_data})
+    if result.modified_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found or no changes made",
+        )
+    return result
+
+
 async def find_by_username(username: str):
     user_data = await users.find_one({"username": username})
     if user_data:
         return User(
+            id=str(user_data["_id"]),
             username=user_data["username"],
             email=user_data["email"],
             full_name=user_data.get("full_name", ""),
@@ -114,6 +125,7 @@ async def find_by_email(email: str):
     user_data = await users.find_one({"email": email})
     if user_data:
         return User(
+            id=str(user_data["_id"]),
             username=user_data["username"],
             email=user_data["email"],
             full_name=user_data.get("full_name", ""),
